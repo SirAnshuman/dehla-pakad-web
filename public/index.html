@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dehla Pakad Lobby</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="mobile-header">
+        <div>
+          <p class="eyebrow">Dehla Pakad</p>
+          <strong>Family Table</strong>
+        </div>
+        <div class="code-badge" id="mobileCode">-----</div>
+      </header>
+
+      <section class="control-panel start-screen" aria-label="Lobby controls">
+        <div class="brand-row">
+          <div>
+            <p class="eyebrow">Family Card Room</p>
+            <h1>Dehla Pakad</h1>
+            <div class="brand-suits" aria-hidden="true"><span>♠</span><span>♥</span><span>♦</span><span>♣</span></div>
+          </div>
+        </div>
+
+        <form class="form-stack" id="createForm">
+          <label for="createName">Your name</label>
+          <input id="createName" name="playerName" autocomplete="name" maxlength="24" placeholder="e.g. Nani" required>
+          <button type="submit">Create Lobby</button>
+        </form>
+
+        <div class="divider"><span>or</span></div>
+
+        <form class="form-stack" id="joinForm">
+          <label for="joinName">Your name</label>
+          <input id="joinName" name="playerName" autocomplete="name" maxlength="24" placeholder="e.g. Rahul" required>
+          <label for="joinCode">Lobby code</label>
+          <input id="joinCode" name="code" class="code-input" maxlength="5" placeholder="ABCDE" required>
+          <button type="submit" class="secondary">Join Lobby</button>
+        </form>
+
+        <p class="message" id="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="table-panel table-screen" aria-label="Lobby table">
+        <div class="table-surface">
+          <div class="seat seat-north" data-seat="0"></div>
+          <div class="seat seat-east" data-seat="1"></div>
+          <div class="seat seat-south" data-seat="2"></div>
+          <div class="seat seat-west" data-seat="3"></div>
+
+          <div class="center-stack">
+            <p class="eyebrow">Dehla Pakad</p>
+            <h1 id="tableTitle">Family Table</h1>
+            <p id="tableSubtitle">Create a lobby or join with a code.</p>
+            <div class="status-strip" id="statusStrip">Waiting for players</div>
+          </div>
+        </div>
+
+        <section class="game-panel" id="gamePanel" hidden>
+          <div class="turn-row">
+            <div>
+              <span class="muted-label">Turn</span>
+              <strong id="turnLabel">Waiting</strong>
+            </div>
+            <div>
+              <span class="muted-label">Trick</span>
+              <strong id="trickLabel">1</strong>
+            </div>
+          </div>
+
+          <div class="trick-row" id="trickRow" aria-label="Current trick"></div>
+          <div class="hand-row" id="handRow" aria-label="Your hand"></div>
+        </section>
+
+        <section class="lobby-tools" id="lobbyTools">
+          <div class="share-row">
+            <div>
+              <span class="muted-label">Code</span>
+              <strong id="shareCode">-----</strong>
+            </div>
+            <button type="button" class="small-button" id="copyButton">Copy</button>
+          </div>
+
+          <div class="action-row">
+            <button type="button" id="readyButton">Ready</button>
+            <button type="button" class="quiet-button" id="leaveButton">Leave</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="match-screen" aria-label="Active match">
+        <header class="match-header">
+          <div class="trump-banner">
+            <span>Trump</span>
+            <strong id="trumpChip">Not opened</strong>
+          </div>
+          <div class="match-identity" id="matchIdentity"></div>
+          <div class="match-header-actions">
+            <button type="button" class="match-leave" id="matchLeaveButton">Leave</button>
+          </div>
+        </header>
+
+        <section class="dehla-tracker" aria-label="Dehla status">
+          <div>
+            <strong>Dehlas</strong>
+            <span id="matchStatusLabel">None captured</span>
+          </div>
+          <div class="dehla-cards" id="dehlaCards"></div>
+          <span class="dehla-chip" id="dehlaChip" hidden></span>
+        </section>
+
+        <div class="play-field">
+          <div class="player-ring" id="playerRing" aria-label="Players and turn order"></div>
+          <div class="match-trick" id="matchTrickRow" aria-label="Cards in this trick"></div>
+        </div>
+
+        <section class="hand-panel" aria-label="Your cards">
+          <div class="hand-heading">
+            <strong>Your hand</strong>
+            <span id="handHint">Legal cards are highlighted</span>
+          </div>
+          <div class="match-hand" id="matchHandRow"></div>
+        </section>
+      </section>
+
+      <section class="result-screen" aria-label="Round result">
+        <p class="result-kicker">Round complete</p>
+        <div class="result-symbols" aria-hidden="true">10♠ 10♥ 10♦ 10♣</div>
+        <h1 id="resultTitle">Satoris win</h1>
+        <p class="result-players" id="resultPlayers"></p>
+        <strong class="result-score" id="resultScore">4 Dehlas captured</strong>
+        <button type="button" id="returnLobbyButton">Back to lobby</button>
+        <p class="result-note">Everyone will return together and ready up again.</p>
+      </section>
+
+      <button class="voice-settings-button" id="voiceSettingsButton" type="button" title="Voice settings" aria-label="Voice settings">⚙</button>
+      <section class="voice-panel" id="voicePanel" aria-label="Voice settings" hidden>
+        <header>
+          <div>
+            <strong>Voice chat</strong>
+            <span id="voiceStatus">Off</span>
+          </div>
+          <button id="closeVoicePanel" type="button" title="Close" aria-label="Close voice settings">×</button>
+        </header>
+        <label class="voice-toggle">
+          <span><strong>Microphone</strong><small>Talk to everyone</small></span>
+          <input id="microphoneToggle" type="checkbox">
+        </label>
+        <label class="voice-toggle">
+          <span><strong>Player voices</strong><small>Hear other players</small></span>
+          <input id="soundToggle" type="checkbox" checked>
+        </label>
+        <label class="voice-toggle">
+          <span><strong>Game sounds</strong><small>Cards and match effects</small></span>
+          <input id="gameSoundToggle" type="checkbox" checked>
+        </label>
+      </section>
+      <div id="voiceAudio" hidden></div>
+      <aside class="event-banner" id="eventBanner" aria-live="assertive" hidden>
+        <span class="event-banner-kicker" id="eventBannerKicker">Match event</span>
+        <strong id="eventBannerTitle"></strong>
+        <span id="eventBannerSubtitle"></span>
+      </aside>
+    </main>
+
+    <script src="/vendor/livekit-client.js"></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
