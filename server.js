@@ -10,7 +10,7 @@ const LOBBY_CODE_LENGTH = 5;
 const MAX_PLAYERS = 4;
 const TRICK_REVEAL_MS = 3_000;
 const LIVEKIT_CLIENT_PATH = path.join(__dirname, "node_modules", "livekit-client", "dist", "livekit-client.umd.js");
-const SUITS = ["S", "H", "D", "C"];
+const SUITS = ["H", "C", "D", "S"];
 const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"];
 const SUIT_LABELS = {
   S: "Spades",

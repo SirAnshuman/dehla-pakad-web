@@ -933,12 +933,40 @@ input:focus {
   font-size: 1.35rem;
 }
 
+.card-button span:first-child {
+  font-size: 1.42rem;
+  font-weight: 950;
+  line-height: 1;
+  -webkit-text-stroke: 0.45px currentColor;
+}
+
+.card-button span:last-child {
+  font-size: 2rem;
+  line-height: 1;
+}
+
 .is-red {
   color: #b52d3a;
 }
 
+.is-heart {
+  color: #dc214b;
+}
+
+.is-diamond {
+  color: #9f342f;
+}
+
 .is-black {
   color: #1c2026;
+}
+
+.is-spade {
+  color: #101318;
+}
+
+.is-club {
+  color: #46515c;
 }
 
 .card-button.is-legal {
@@ -1555,11 +1583,15 @@ body.has-lobby:not(.has-match):not(.has-result) #leaveButton {
     height: 82px;
     min-height: 82px;
     padding: 7px;
-    font-size: 0.9rem;
+    font-size: 1rem;
+  }
+
+  .card-button span:first-child {
+    font-size: 1.3rem;
   }
 
   .card-button span:last-child {
-    font-size: 1.18rem;
+    font-size: 1.76rem;
   }
 
   .has-match .lobby-tools {
@@ -2247,7 +2279,7 @@ body:not(.has-lobby) .message {
 
 .event-banner {
   position: fixed;
-  top: 31%;
+  top: 8px;
   left: 50%;
   z-index: 100;
   display: grid;

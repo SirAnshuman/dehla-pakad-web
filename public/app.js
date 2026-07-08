@@ -54,6 +54,7 @@ const elements = {
   dehlaCards: document.querySelector("#dehlaCards"),
   matchIdentity: document.querySelector("#matchIdentity"),
   playerRing: document.querySelector("#playerRing"),
+  playField: document.querySelector(".play-field"),
   matchLeaveButton: document.querySelector("#matchLeaveButton"),
   matchTrickRow: document.querySelector("#matchTrickRow"),
   matchHandRow: document.querySelector("#matchHandRow"),
@@ -617,6 +618,7 @@ function showNextMatchEvent() {
   elements.eventBannerTitle.textContent = copy.title;
   elements.eventBannerSubtitle.textContent = copy.subtitle;
   elements.eventBanner.hidden = false;
+  positionEventBanner();
 
   window.setTimeout(() => {
     elements.eventBanner.classList.add("is-leaving");
@@ -627,6 +629,18 @@ function showNextMatchEvent() {
       showNextMatchEvent();
     }, 280);
   }, 2_600);
+}
+
+function positionEventBanner() {
+  if (elements.eventBanner.hidden || !elements.playField) {
+    return;
+  }
+  const playRect = elements.playField.getBoundingClientRect();
+  const bannerRect = elements.eventBanner.getBoundingClientRect();
+  const width = Math.min(520, playRect.width, window.innerWidth - 28);
+  const top = Math.max(8, playRect.top - bannerRect.height - 10);
+  elements.eventBanner.style.width = `${width}px`;
+  elements.eventBanner.style.top = `${top}px`;
 }
 
 function renderResult(result) {
@@ -728,7 +742,7 @@ function renderGame(match) {
     const teamIndex = state.lobby.teamNames.indexOf(team);
     const stateClass = team ? `is-captured is-${teamIndex === 0 ? "alpha" : "beta"}` : pendingIds.has(id) ? "is-pending" : "";
     return `
-      <div class="dehla-card ${stateClass} ${suit === "H" || suit === "D" ? "is-red" : "is-black"}">
+      <div class="dehla-card ${stateClass} ${cardColorClass({ suit })}">
         <strong>10${suitSymbol(suit)}</strong>
         <span>${status}</span>
       </div>
@@ -921,7 +935,16 @@ function suitName(suit) {
 }
 
 function cardColorClass(card) {
-  return card.suit === "H" || card.suit === "D" ? "is-red" : "is-black";
+  if (card.suit === "H") {
+    return "is-red is-heart";
+  }
+  if (card.suit === "D") {
+    return "is-red is-diamond";
+  }
+  if (card.suit === "S") {
+    return "is-black is-spade";
+  }
+  return "is-black is-club";
 }
 
 function emptyTable() {
@@ -1192,4 +1215,5 @@ document.addEventListener("pointerdown", (event) => {
     playButtonSound(button);
   }
 });
+window.addEventListener("resize", positionEventBanner);
 restoreFromUrl();
