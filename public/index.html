@@ -27,7 +27,7 @@
 
         <form class="form-stack" id="createForm">
           <label for="createName">Your name</label>
-          <input id="createName" name="playerName" autocomplete="name" maxlength="24" placeholder="e.g. Nani" required>
+          <input id="createName" name="playerName" autocomplete="name" autocapitalize="words" minlength="1" maxlength="6" pattern="[A-Za-z0-9]{1,6}" title="Use 1 to 6 letters or numbers only" placeholder="e.g. Nani" required>
           <button type="submit">Create Lobby</button>
         </form>
 
@@ -35,7 +35,7 @@
 
         <form class="form-stack" id="joinForm">
           <label for="joinName">Your name</label>
-          <input id="joinName" name="playerName" autocomplete="name" maxlength="24" placeholder="e.g. Rahul" required>
+          <input id="joinName" name="playerName" autocomplete="name" autocapitalize="words" minlength="1" maxlength="6" pattern="[A-Za-z0-9]{1,6}" title="Use 1 to 6 letters or numbers only" placeholder="e.g. Rahul" required>
           <label for="joinCode">Lobby code</label>
           <input id="joinCode" name="code" class="code-input" maxlength="5" placeholder="ABCDE" required>
           <button type="submit" class="secondary">Join Lobby</button>
@@ -66,16 +66,27 @@
               <strong id="turnLabel">Waiting</strong>
             </div>
             <div>
-              <span class="muted-label">Trick</span>
+              <span class="muted-label">Sir</span>
               <strong id="trickLabel">1</strong>
             </div>
           </div>
 
-          <div class="trick-row" id="trickRow" aria-label="Current trick"></div>
+          <div class="trick-row" id="trickRow" aria-label="Current sir"></div>
           <div class="hand-row" id="handRow" aria-label="Your hand"></div>
         </section>
 
         <section class="lobby-tools" id="lobbyTools">
+          <div class="series-score" aria-label="Lobby series score">
+            <div class="series-team series-team-alpha">
+              <span id="seriesTeamAlpha">Team 1</span>
+              <strong id="seriesScoreAlpha">0</strong>
+            </div>
+            <span class="series-versus">VS</span>
+            <div class="series-team series-team-beta">
+              <span id="seriesTeamBeta">Team 2</span>
+              <strong id="seriesScoreBeta">0</strong>
+            </div>
+          </div>
           <div class="share-row">
             <div>
               <span class="muted-label">Code</span>
@@ -114,7 +125,7 @@
 
         <div class="play-field">
           <div class="player-ring" id="playerRing" aria-label="Players and turn order"></div>
-          <div class="match-trick" id="matchTrickRow" aria-label="Cards in this trick"></div>
+          <div class="match-trick" id="matchTrickRow" aria-label="Cards in this sir"></div>
         </div>
 
         <section class="hand-panel" aria-label="Your cards">
@@ -129,7 +140,7 @@
       <section class="result-screen" aria-label="Round result">
         <p class="result-kicker">Round complete</p>
         <div class="result-symbols" aria-hidden="true">10♠ 10♥ 10♦ 10♣</div>
-        <h1 id="resultTitle">Satoris win</h1>
+        <h1 id="resultTitle">Team wins</h1>
         <p class="result-players" id="resultPlayers"></p>
         <strong class="result-score" id="resultScore">4 Dehlas captured</strong>
         <button type="button" id="returnLobbyButton">Back to lobby</button>
@@ -140,7 +151,7 @@
       <section class="voice-panel" id="voicePanel" aria-label="Voice settings" hidden>
         <header>
           <div>
-            <strong>Voice chat</strong>
+            <strong>Audio & voice</strong>
             <span id="voiceStatus">Off</span>
           </div>
           <button id="closeVoicePanel" type="button" title="Close" aria-label="Close voice settings">×</button>
@@ -157,8 +168,25 @@
           <span><strong>Game sounds</strong><small>Cards and match effects</small></span>
           <input id="gameSoundToggle" type="checkbox" checked>
         </label>
+        <label class="voice-toggle">
+          <span><strong>Music</strong><small>Soft retro arcade loop</small></span>
+          <input id="musicToggle" type="checkbox" checked>
+        </label>
       </section>
       <div id="voiceAudio" hidden></div>
+      <aside class="vs-screen" id="vsScreen" aria-live="assertive" hidden>
+        <div class="vs-team vs-team-alpha">
+          <span>Team cyan</span>
+          <strong id="vsTeamAlpha"></strong>
+          <small id="vsPlayersAlpha"></small>
+        </div>
+        <div class="vs-mark" aria-hidden="true">VS</div>
+        <div class="vs-team vs-team-beta">
+          <span>Team magenta</span>
+          <strong id="vsTeamBeta"></strong>
+          <small id="vsPlayersBeta"></small>
+        </div>
+      </aside>
       <aside class="event-banner" id="eventBanner" aria-live="assertive" hidden>
         <span class="event-banner-kicker" id="eventBannerKicker">Match event</span>
         <strong id="eventBannerTitle"></strong>

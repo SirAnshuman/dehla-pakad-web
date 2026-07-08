@@ -8,7 +8,7 @@ const PORT = Number(process.env.PORT || 4173);
 const PUBLIC_DIR = path.join(__dirname, "public");
 const LOBBY_CODE_LENGTH = 5;
 const MAX_PLAYERS = 4;
-const TRICK_REVEAL_MS = 5_000;
+const TRICK_REVEAL_MS = 3_000;
 const LIVEKIT_CLIENT_PATH = path.join(__dirname, "node_modules", "livekit-client", "dist", "livekit-client.umd.js");
 const SUITS = ["S", "H", "D", "C"];
 const RANKS = ["A", "K", "Q", "J", "10", "9", "8", "7", "6", "5", "4", "3", "2"];
@@ -19,6 +19,13 @@ const SUIT_LABELS = {
   C: "Clubs",
 };
 const RANK_VALUE = new Map(RANKS.map((rank, index) => [rank, RANKS.length - index]));
+const TEAM_NAMES = [
+  "Satoris", "Khiladis", "Juwaris", "Gundas", "Baazigars",
+  "Nawabs", "Sultans", "Badshahs", "Ustaads", "Sikandars",
+  "Toofanis", "Jaanbaaz", "Sherdils", "Dabanggs", "Awaaras",
+  "Lafangeys", "Khalnayaks", "Looteras", "Shikaris", "Tashbaaz",
+  "Patakhas", "Dhamakas", "Yodhaas", "Fantoos", "Rangeelas",
+];
 
 const lobbies = new Map();
 const streamsByLobby = new Map();
@@ -45,12 +52,24 @@ function createLobbyCode() {
 }
 
 function sanitizeName(value) {
-  const name = String(value || "").trim().replace(/\s+/g, " ");
-  return name.slice(0, 24) || "Player";
+  const name = String(value || "").trim();
+  if (!/^[A-Za-z0-9]{1,6}$/.test(name)) {
+    throw httpError(400, "Name must contain 1 to 6 letters or numbers only.");
+  }
+  return name;
 }
 
-function teamForSeat(seatIndex) {
-  return seatIndex === 0 || seatIndex === 2 ? "Satoris" : "Khiladis";
+function selectTeamNames() {
+  const firstIndex = Math.floor(Math.random() * TEAM_NAMES.length);
+  let secondIndex = Math.floor(Math.random() * (TEAM_NAMES.length - 1));
+  if (secondIndex >= firstIndex) {
+    secondIndex += 1;
+  }
+  return [TEAM_NAMES[firstIndex], TEAM_NAMES[secondIndex]];
+}
+
+function teamForSeat(teamNames, seatIndex) {
+  return teamNames[seatIndex % 2];
 }
 
 function teamForPlayer(lobby, playerId) {
@@ -58,11 +77,12 @@ function teamForPlayer(lobby, playerId) {
   return seat ? seat.team : null;
 }
 
-function emptySeats() {
+function emptySeats(teamNames) {
   return Array.from({ length: MAX_PLAYERS }, (_, index) => ({
     index,
     label: ["North", "East", "South", "West"][index],
-    team: teamForSeat(index),
+    team: teamForSeat(teamNames, index),
+    teamKey: index % 2 === 0 ? "alpha" : "beta",
     playerId: null,
   }));
 }
@@ -123,12 +143,10 @@ function playerName(lobby, playerId) {
 }
 
 function buildRoundResult(lobby, match) {
-  const counts = {
-    Satoris: match.dehla.captured.Satoris.length,
-    Khiladis: match.dehla.captured.Khiladis.length,
-  };
-  const isDraw = counts.Satoris === counts.Khiladis;
-  const winningTeam = isDraw ? null : counts.Satoris > counts.Khiladis ? "Satoris" : "Khiladis";
+  const [firstTeam, secondTeam] = lobby.teamNames;
+  const counts = Object.fromEntries(lobby.teamNames.map((team) => [team, match.dehla.captured[team].length]));
+  const isDraw = counts[firstTeam] === counts[secondTeam];
+  const winningTeam = isDraw ? null : counts[firstTeam] > counts[secondTeam] ? firstTeam : secondTeam;
   const playerNames = winningTeam
     ? lobby.seats
       .filter((seat) => seat.team === winningTeam)
@@ -141,6 +159,7 @@ function buildRoundResult(lobby, match) {
     playerNames,
     dehlaCount: winningTeam ? counts[winningTeam] : 2,
     capturedCounts: counts,
+    teamNames: lobby.teamNames,
   };
 }
 
@@ -152,6 +171,7 @@ function publicMatch(lobby, viewerId) {
   const hand = sortCards(lobby.match.hands[viewerId] || []);
   return {
     id: lobby.match.id,
+    startedAt: lobby.match.startedAt,
     status: lobby.match.status,
     currentTurnPlayerId: lobby.match.currentTurnPlayerId,
     currentTurnPlayerName: playerName(lobby, lobby.match.currentTurnPlayerId),
@@ -169,14 +189,8 @@ function publicMatch(lobby, viewerId) {
     dehla: {
       pending: lobby.match.dehla.pending,
       opportunityTeam: lobby.match.dehla.opportunityTeam,
-      capturedCounts: {
-        Satoris: lobby.match.dehla.captured.Satoris.length,
-        Khiladis: lobby.match.dehla.captured.Khiladis.length,
-      },
-      captured: {
-        Satoris: lobby.match.dehla.captured.Satoris,
-        Khiladis: lobby.match.dehla.captured.Khiladis,
-      },
+      capturedCounts: Object.fromEntries(lobby.teamNames.map((team) => [team, lobby.match.dehla.captured[team].length])),
+      captured: lobby.match.dehla.captured,
     },
     lastTrick: lobby.match.lastTrick ? {
       number: lobby.match.lastTrick.number,
@@ -197,6 +211,8 @@ function publicLobby(lobby, viewerId = null) {
     players: lobby.players,
     seats: lobby.seats,
     status: lobby.status,
+    teamNames: lobby.teamNames,
+    score: lobby.score,
     match: publicMatch(lobby, viewerId),
   };
 }
@@ -204,7 +220,7 @@ function publicLobby(lobby, viewerId = null) {
 function addPlayerToLobby(lobby, playerName, existingPlayerId) {
   const reusablePlayer = existingPlayerId ? lobby.players.find((player) => player.id === existingPlayerId) : null;
   if (reusablePlayer) {
-    reusablePlayer.name = sanitizeName(playerName) || reusablePlayer.name;
+    reusablePlayer.name = sanitizeName(playerName);
     reusablePlayer.connected = true;
     reusablePlayer.lastSeenAt = new Date().toISOString();
     return reusablePlayer;
@@ -262,6 +278,7 @@ function startMatch(lobby) {
   const firstPlayerId = playerIds[Math.floor(Math.random() * playerIds.length)];
   lobby.match = {
     id: createId(),
+    startedAt: Date.now(),
     status: "playing",
     hands,
     currentTurnPlayerId: firstPlayerId,
@@ -270,7 +287,7 @@ function startMatch(lobby) {
     currentTrick: [],
     trickNumber: 1,
     isRevealingTrick: false,
-    dehla: createDehlaState(),
+    dehla: createDehlaState(lobby.teamNames),
     lastTrick: null,
     result: null,
     events: [],
@@ -367,7 +384,7 @@ function finishTrickReveal(lobby, matchId) {
   }
 
   const noCardsLeft = Object.values(match.hands).every((playerHand) => playerHand.length === 0);
-  const allDehlasCaptured = match.dehla.captured.Satoris.length + match.dehla.captured.Khiladis.length === 4;
+  const allDehlasCaptured = Object.values(match.dehla.captured).reduce((total, cards) => total + cards.length, 0) === 4;
   match.currentTrick = [];
   match.leadSuit = null;
   match.trickNumber += 1;
@@ -377,6 +394,9 @@ function finishTrickReveal(lobby, matchId) {
     match.status = "complete";
     match.currentTurnPlayerId = null;
     match.result = buildRoundResult(lobby, match);
+    if (match.result.winningTeam) {
+      lobby.score[match.result.winningTeam] += 1;
+    }
     lobby.status = "complete";
   } else {
     match.currentTurnPlayerId = match.lastTrick.winnerPlayerId;
@@ -429,13 +449,13 @@ function playCard(lobby, playerId, cardId) {
   const winner = winningPlay(match);
   const noCardsLeft = Object.values(match.hands).every((playerHand) => playerHand.length === 0);
   const winnerTeam = teamForPlayer(lobby, winner.playerId);
-  const capturedBefore = match.dehla.captured.Satoris.length + match.dehla.captured.Khiladis.length;
+  const capturedBefore = Object.values(match.dehla.captured).reduce((total, cards) => total + cards.length, 0);
   match.dehla = resolveDehlaTrick(match.dehla, {
     cards: match.currentTrick.map((play) => play.card),
     winnerTeam,
     isFinalTrick: noCardsLeft,
   });
-  const capturedAfter = match.dehla.captured.Satoris.length + match.dehla.captured.Khiladis.length;
+  const capturedAfter = Object.values(match.dehla.captured).reduce((total, cards) => total + cards.length, 0);
   if (capturedAfter > capturedBefore) {
     addMatchEvent(match, "dehlas-covered", {
       count: capturedAfter - capturedBefore,
@@ -518,6 +538,9 @@ function sendJson(response, status, data) {
 
 function sendError(response, error) {
   const status = error.status || 500;
+  if (status === 500) {
+    console.error(error);
+  }
   const message = status === 500 ? "Something went wrong." : error.message;
   sendJson(response, status, { error: message });
 }
@@ -597,12 +620,15 @@ async function handleApi(request, response) {
   if (request.method === "POST" && requestUrl.pathname === "/api/lobbies") {
     const body = await parseBody(request);
     const code = createLobbyCode();
+    const teamNames = selectTeamNames();
     const lobby = {
       code,
       hostId: null,
       createdAt: new Date().toISOString(),
       players: [],
-      seats: emptySeats(),
+      teamNames,
+      score: Object.fromEntries(teamNames.map((team) => [team, 0])),
+      seats: emptySeats(teamNames),
       status: "waiting",
     };
 
@@ -747,7 +773,7 @@ async function handleApi(request, response) {
         throw httpError(503, "Voice chat is not configured yet.");
       }
 
-      const { AccessToken } = await import("livekit-server-sdk");
+      const { AccessToken, TrackSource } = await import("livekit-server-sdk");
       const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, {
         identity: player.id,
         name: player.name,
@@ -758,7 +784,7 @@ async function handleApi(request, response) {
         roomJoin: true,
         room: `dehla-${lobby.code}`,
         canPublish: true,
-        canPublishSources: ["microphone"],
+        canPublishSources: [TrackSource.MICROPHONE],
         canSubscribe: true,
         canPublishData: false,
       });

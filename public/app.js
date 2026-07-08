@@ -15,6 +15,13 @@ const state = {
   },
   audioContext: null,
   gameSoundEnabled: localStorage.getItem("dehla.game.sound") !== "off",
+  musicEnabled: localStorage.getItem("dehla.music") !== "off",
+  musicTimer: null,
+  musicStep: 0,
+  nextMusicNoteTime: 0,
+  celebratedResult: null,
+  introMatchId: null,
+  introTimer: null,
 };
 
 const elements = {
@@ -29,6 +36,10 @@ const elements = {
   mobileCode: document.querySelector("#mobileCode"),
   shareCode: document.querySelector("#shareCode"),
   lobbyTools: document.querySelector("#lobbyTools"),
+  seriesTeamAlpha: document.querySelector("#seriesTeamAlpha"),
+  seriesScoreAlpha: document.querySelector("#seriesScoreAlpha"),
+  seriesTeamBeta: document.querySelector("#seriesTeamBeta"),
+  seriesScoreBeta: document.querySelector("#seriesScoreBeta"),
   readyButton: document.querySelector("#readyButton"),
   leaveButton: document.querySelector("#leaveButton"),
   copyButton: document.querySelector("#copyButton"),
@@ -47,6 +58,9 @@ const elements = {
   matchTrickRow: document.querySelector("#matchTrickRow"),
   matchHandRow: document.querySelector("#matchHandRow"),
   handHint: document.querySelector("#handHint"),
+  resultScreen: document.querySelector(".result-screen"),
+  resultKicker: document.querySelector(".result-kicker"),
+  resultSymbols: document.querySelector(".result-symbols"),
   resultTitle: document.querySelector("#resultTitle"),
   resultPlayers: document.querySelector("#resultPlayers"),
   resultScore: document.querySelector("#resultScore"),
@@ -58,7 +72,13 @@ const elements = {
   microphoneToggle: document.querySelector("#microphoneToggle"),
   soundToggle: document.querySelector("#soundToggle"),
   gameSoundToggle: document.querySelector("#gameSoundToggle"),
+  musicToggle: document.querySelector("#musicToggle"),
   voiceAudio: document.querySelector("#voiceAudio"),
+  vsScreen: document.querySelector("#vsScreen"),
+  vsTeamAlpha: document.querySelector("#vsTeamAlpha"),
+  vsPlayersAlpha: document.querySelector("#vsPlayersAlpha"),
+  vsTeamBeta: document.querySelector("#vsTeamBeta"),
+  vsPlayersBeta: document.querySelector("#vsPlayersBeta"),
   eventBanner: document.querySelector("#eventBanner"),
   eventBannerKicker: document.querySelector("#eventBannerKicker"),
   eventBannerTitle: document.querySelector("#eventBannerTitle"),
@@ -169,7 +189,7 @@ function renderSeat(seat) {
   seatElement.innerHTML = `
     <div class="seat-header">
       <span class="seat-label">${seat.label}</span>
-      <span class="team-pill team-${seat.team.toLowerCase()}">${seat.team}</span>
+      <span class="team-pill team-${seat.teamKey}">${escapeHtml(seat.team)}</span>
     </div>
     <div class="player-name">${player ? escapeHtml(player.name) : "Open seat"}</div>
     <div class="seat-header">
@@ -204,7 +224,7 @@ function render() {
   const seatedCount = lobby.seats.filter((seat) => seat.playerId).length;
   const readyCount = lobby.players.filter((candidate) => candidate.ready).length;
 
-  elements.tableTitle.textContent = match ? `Trick ${match.trickNumber}` : lobby.code;
+  elements.tableTitle.textContent = match ? `Sir ${match.trickNumber}` : lobby.code;
   elements.tableSubtitle.textContent = match
     ? matchSummary(match)
     : `${seatedCount}/4 seats filled`;
@@ -213,6 +233,11 @@ function render() {
     : `${readyCount}/${lobby.players.length} ready`;
   elements.mobileCode.textContent = lobby.code;
   elements.shareCode.textContent = lobby.code;
+  const [alphaTeam, betaTeam] = lobby.teamNames;
+  elements.seriesTeamAlpha.textContent = alphaTeam;
+  elements.seriesScoreAlpha.textContent = String(lobby.score[alphaTeam]);
+  elements.seriesTeamBeta.textContent = betaTeam;
+  elements.seriesScoreBeta.textContent = String(lobby.score[betaTeam]);
   elements.readyButton.textContent = match ? "Playing" : player?.ready ? "Unready" : "Ready";
   elements.readyButton.disabled = !player || Boolean(match);
   elements.leaveButton.disabled = !player;
@@ -223,7 +248,64 @@ function render() {
 
   renderGame(match);
   renderResult(match?.result || null);
+  processMatchIntro(match);
   processMatchEvents(match);
+}
+
+function playVsSound() {
+  const context = ensureAudioContext();
+  if (!context || context.state === "closed") {
+    return;
+  }
+  const now = context.currentTime;
+  [98, 147, 196].forEach((frequency, index) => {
+    scheduleMusicNote(context, frequency, now + index * 0.08, 0.28, 0.055, "sawtooth");
+  });
+  scheduleMusicNote(context, 784, now + 0.34, 0.18, 0.04, "square");
+  scheduleMusicNote(context, 1_176, now + 0.43, 0.3, 0.032, "square");
+}
+
+function processMatchIntro(match) {
+  if (!match) {
+    state.introMatchId = null;
+    if (state.introTimer) {
+      window.clearTimeout(state.introTimer);
+      state.introTimer = null;
+    }
+    elements.vsScreen.hidden = true;
+    return;
+  }
+  if (state.introMatchId === match.id || match.result) {
+    return;
+  }
+
+  state.introMatchId = match.id;
+  if (!match.startedAt || Date.now() - match.startedAt > 6_000) {
+    return;
+  }
+
+  const [alphaTeam, betaTeam] = state.lobby.teamNames;
+  const playersForTeam = (team) => state.lobby.seats
+    .filter((seat) => seat.team === team)
+    .map((seat) => playerById(seat.playerId)?.name)
+    .filter(Boolean)
+    .join(" + ");
+  elements.vsTeamAlpha.textContent = alphaTeam;
+  elements.vsPlayersAlpha.textContent = playersForTeam(alphaTeam);
+  elements.vsTeamBeta.textContent = betaTeam;
+  elements.vsPlayersBeta.textContent = playersForTeam(betaTeam);
+  elements.vsScreen.className = "vs-screen";
+  elements.vsScreen.hidden = false;
+  playVsSound();
+
+  state.introTimer = window.setTimeout(() => {
+    elements.vsScreen.classList.add("is-leaving");
+    state.introTimer = window.setTimeout(() => {
+      elements.vsScreen.hidden = true;
+      elements.vsScreen.classList.remove("is-leaving");
+      state.introTimer = null;
+    }, 320);
+  }, 2_700);
 }
 
 function processMatchEvents(match) {
@@ -252,8 +334,8 @@ function processMatchEvents(match) {
   showNextMatchEvent();
 }
 
-function ensureAudioContext() {
-  if (!state.gameSoundEnabled) {
+function ensureAudioContext(forMusic = false) {
+  if (forMusic ? !state.musicEnabled : !state.gameSoundEnabled) {
     return null;
   }
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -267,6 +349,105 @@ function ensureAudioContext() {
     state.audioContext.resume().catch(() => {});
   }
   return state.audioContext;
+}
+
+function scheduleMusicNote(context, frequency, start, duration, volume, type = "square") {
+  if (!frequency) {
+    return;
+  }
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function musicFrequency(midiNote) {
+  return 440 * (2 ** ((midiNote - 69) / 12));
+}
+
+function queueBackgroundMusic() {
+  const context = ensureAudioContext(true);
+  if (!context || context.state === "closed") {
+    return;
+  }
+  const chordRoots = [
+    48, 48, 53, 55, 48, 57, 53, 55,
+    48, 52, 53, 55, 57, 53, 55, 55,
+    45, 53, 48, 55, 45, 53, 50, 55,
+  ];
+  const motifs = [
+    [12, null, 16, 19, 16, 14, 12, null],
+    [19, 16, 17, null, 21, 19, 16, 14],
+    [12, 14, 16, 19, 21, null, 19, 16],
+    [16, 14, 12, 9, 12, 14, 16, null],
+  ];
+  const stepDuration = 0.17;
+  const songSteps = chordRoots.length * 8;
+  while (state.nextMusicNoteTime < context.currentTime + 0.3) {
+    const songStep = state.musicStep % songSteps;
+    const bar = Math.floor(songStep / 8);
+    const beat = songStep % 8;
+    const section = Math.floor(bar / 8);
+    const root = chordRoots[bar];
+    const motif = motifs[(bar + section) % motifs.length];
+    let leadOffset = motif[beat];
+
+    if (section === 0 && bar < 2 && beat % 2 === 1) {
+      leadOffset = null;
+    } else if (section === 1 && leadOffset !== null && bar % 2 === 1) {
+      leadOffset += beat === 6 ? 12 : 0;
+    } else if (section === 2 && leadOffset !== null) {
+      leadOffset += beat % 3 === 0 ? -3 : 0;
+    }
+
+    if (leadOffset !== null) {
+      scheduleMusicNote(context, musicFrequency(root + leadOffset), state.nextMusicNoteTime, 0.125, 0.014, "square");
+    }
+
+    if (beat % 2 === 0) {
+      const bassOffset = beat === 6 && bar % 3 === 2 ? 7 : 0;
+      scheduleMusicNote(context, musicFrequency(root - 12 + bassOffset), state.nextMusicNoteTime, 0.15, 0.018, "triangle");
+    }
+
+    if (section > 0 && beat % 2 === 1) {
+      const chordTone = [0, 4, 7, 11][Math.floor(beat / 2)];
+      scheduleMusicNote(context, musicFrequency(root + chordTone + 12), state.nextMusicNoteTime, 0.08, 0.0055, "sine");
+    }
+
+    if (beat === 0 || beat === 4) {
+      scheduleMusicNote(context, beat === 0 ? 74 : 92, state.nextMusicNoteTime, 0.07, 0.012, "triangle");
+    } else if (section === 2 && beat === 7) {
+      scheduleMusicNote(context, 1_480, state.nextMusicNoteTime, 0.035, 0.004, "square");
+    }
+    state.musicStep += 1;
+    state.nextMusicNoteTime += stepDuration;
+  }
+}
+
+function startBackgroundMusic() {
+  if (!state.musicEnabled || state.musicTimer) {
+    return;
+  }
+  const context = ensureAudioContext(true);
+  if (!context) {
+    return;
+  }
+  state.nextMusicNoteTime = context.currentTime + 0.05;
+  queueBackgroundMusic();
+  state.musicTimer = window.setInterval(queueBackgroundMusic, 100);
+}
+
+function stopBackgroundMusic() {
+  if (state.musicTimer) {
+    window.clearInterval(state.musicTimer);
+    state.musicTimer = null;
+  }
 }
 
 function playCardSound(variantValue) {
@@ -335,6 +516,17 @@ function playBannerSound(event) {
     oscillator.start(start);
     oscillator.stop(start + duration + 0.02);
   };
+
+  if (event.type === "coat") {
+    [110, 165, 220].forEach((frequency, index) => {
+      playTone(frequency, index * 0.11, 0.3, 0.075, "sawtooth", frequency * 2);
+    });
+    [440, 554, 659, 880].forEach((frequency, index) => {
+      playTone(frequency, 0.36 + index * 0.1, 0.38, 0.06, "square", frequency * 1.12);
+    });
+    playTone(110, 0.7, 0.8, 0.09, "triangle", 55);
+    return;
+  }
 
   if (event.type === "dehla-entered") {
     playTone(180, 0, 0.34, 0.075, "sawtooth", 520);
@@ -439,16 +631,39 @@ function showNextMatchEvent() {
 
 function renderResult(result) {
   if (!result) {
+    state.celebratedResult = null;
+    elements.resultScreen.classList.remove("is-coat");
     return;
   }
 
+  const isCoat = !result.isDraw && result.dehlaCount === 4;
+  elements.resultScreen.classList.toggle("is-coat", isCoat);
+
   if (result.isDraw) {
+    elements.resultKicker.textContent = "Round complete";
+    elements.resultSymbols.textContent = "10♠ 10♥ 10♦ 10♣";
     elements.resultTitle.textContent = "Round drawn";
-    elements.resultPlayers.textContent = "Satoris and Khiladis finish level";
+    elements.resultPlayers.textContent = `${result.teamNames.join(" and ")} finish level`;
     elements.resultScore.textContent = "2 Dehlas each";
     return;
   }
 
+  if (isCoat) {
+    const resultKey = `${result.winningTeam}:${result.playerNames.join(":")}:4`;
+    elements.resultKicker.textContent = "Flawless capture";
+    elements.resultSymbols.textContent = "10♠ 10♥ 10♦ 10♣";
+    elements.resultTitle.textContent = "COAT!";
+    elements.resultPlayers.textContent = `${result.playerNames.join(" and ")} · Team ${result.winningTeam}`;
+    elements.resultScore.textContent = "4–0 · All Dehlas captured";
+    if (state.celebratedResult !== resultKey) {
+      state.celebratedResult = resultKey;
+      playBannerSound({ type: "coat" });
+    }
+    return;
+  }
+
+  elements.resultKicker.textContent = "Round complete";
+  elements.resultSymbols.textContent = "10♠ 10♥ 10♦ 10♣";
   elements.resultTitle.textContent = `Team ${result.winningTeam} win`;
   elements.resultPlayers.textContent = result.playerNames.join(" and ");
   elements.resultScore.textContent = `${result.dehlaCount} Dehla${result.dehlaCount === 1 ? "" : "s"} captured`;
@@ -500,7 +715,7 @@ function renderGame(match) {
     ? `${pendingCount} pending · ${match.dehla.opportunityTeam} can cover`
     : "";
   const capturedById = new Map();
-  for (const team of ["Satoris", "Khiladis"]) {
+  for (const team of state.lobby.teamNames) {
     for (const card of match.dehla.captured[team]) {
       capturedById.set(card.id, team);
     }
@@ -510,7 +725,8 @@ function renderGame(match) {
     const id = `${suit}10`;
     const team = capturedById.get(id);
     const status = team || (pendingIds.has(id) ? "Pending" : "In play");
-    const stateClass = team ? `is-captured is-${team.toLowerCase()}` : pendingIds.has(id) ? "is-pending" : "";
+    const teamIndex = state.lobby.teamNames.indexOf(team);
+    const stateClass = team ? `is-captured is-${teamIndex === 0 ? "alpha" : "beta"}` : pendingIds.has(id) ? "is-pending" : "";
     return `
       <div class="dehla-card ${stateClass} ${suit === "H" || suit === "D" ? "is-red" : "is-black"}">
         <strong>10${suitSymbol(suit)}</strong>
@@ -518,9 +734,10 @@ function renderGame(match) {
       </div>
     `;
   }).join("");
-  const totalCaptured = match.dehla.capturedCounts.Satoris + match.dehla.capturedCounts.Khiladis;
+  const [firstTeam, secondTeam] = state.lobby.teamNames;
+  const totalCaptured = match.dehla.capturedCounts[firstTeam] + match.dehla.capturedCounts[secondTeam];
   elements.matchStatusLabel.textContent = totalCaptured
-    ? `Satoris ${match.dehla.capturedCounts.Satoris} · Khiladis ${match.dehla.capturedCounts.Khiladis}`
+    ? `${firstTeam} ${match.dehla.capturedCounts[firstTeam]} · ${secondTeam} ${match.dehla.capturedCounts[secondTeam]}`
     : "None captured";
   elements.matchTrickRow.innerHTML = match.currentTrick.length
     ? match.currentTrick.map((play) => `
@@ -533,7 +750,7 @@ function renderGame(match) {
   elements.handHint.textContent = match.currentTurnPlayerId === state.playerId
     ? "Choose a highlighted card"
     : match.isRevealingTrick && match.lastTrick
-      ? `${match.lastTrick.winnerPlayerName} won · Next trick in 5 seconds`
+      ? `${match.lastTrick.winnerPlayerName} won · Next sir in 3 seconds`
     : `Waiting for ${match.currentTurnPlayerName}`;
 }
 
@@ -559,8 +776,8 @@ function renderMatchPlayers(match) {
     <span class="identity-avatar">${escapeHtml(playerInitials(me.name))}</span>
     <span><strong>${escapeHtml(me.name)}</strong><small>${escapeHtml(mySeat.team)}</small></span>
   `;
-  elements.matchIdentity.classList.toggle("team-satoris", mySeat.team === "Satoris");
-  elements.matchIdentity.classList.toggle("team-khiladis", mySeat.team === "Khiladis");
+  elements.matchIdentity.classList.toggle("team-alpha", mySeat.teamKey === "alpha");
+  elements.matchIdentity.classList.toggle("team-beta", mySeat.teamKey === "beta");
 
   const positions = ["bottom", "left", "top", "right"];
   elements.playerRing.innerHTML = state.lobby.seats.map((seat) => {
@@ -574,7 +791,7 @@ function renderMatchPlayers(match) {
     const isMe = player.id === state.playerId;
     const isSpeaking = state.voice.speakingIds.has(player.id);
     return `
-      <div data-player-id="${player.id}" class="table-player team-${seat.team.toLowerCase()} player-${positions[relativeIndex]} ${isActive ? "is-active" : ""} ${wonTrick ? "won-trick" : ""} ${isSpeaking ? "is-speaking" : ""} ${isMe ? "is-me" : ""}">
+      <div data-player-id="${player.id}" class="table-player team-${seat.teamKey} player-${positions[relativeIndex]} ${isActive ? "is-active" : ""} ${wonTrick ? "won-trick" : ""} ${isSpeaking ? "is-speaking" : ""} ${isMe ? "is-me" : ""}">
         <span class="player-avatar">${escapeHtml(playerInitials(player.name))}</span>
         <span class="table-player-name">${isMe ? "You" : escapeHtml(player.name)}</span>
         <span class="table-player-team">${escapeHtml(seat.team)}</span>
@@ -709,13 +926,13 @@ function cardColorClass(card) {
 
 function emptyTable() {
   const labels = ["North", "East", "South", "West"];
-  const teams = ["Satoris", "Khiladis", "Satoris", "Khiladis"];
+  const teams = ["Team 1", "Team 2", "Team 1", "Team 2"];
 
   labels.forEach((label, index) => {
     elements.seats[index].innerHTML = `
       <div class="seat-header">
         <span class="seat-label">${label}</span>
-        <span class="team-pill team-${teams[index].toLowerCase()}">${teams[index]}</span>
+        <span class="team-pill team-${index % 2 === 0 ? "alpha" : "beta"}">${teams[index]}</span>
       </div>
       <div class="player-name">Open seat</div>
       <button class="seat-action" type="button" disabled>Sit</button>
@@ -905,6 +1122,16 @@ elements.gameSoundToggle.addEventListener("change", () => {
   }
 });
 
+elements.musicToggle.addEventListener("change", () => {
+  state.musicEnabled = elements.musicToggle.checked;
+  localStorage.setItem("dehla.music", state.musicEnabled ? "on" : "off");
+  if (state.musicEnabled) {
+    startBackgroundMusic();
+  } else {
+    stopBackgroundMusic();
+  }
+});
+
 elements.copyButton.addEventListener("click", async () => {
   if (!state.lobby) {
     return;
@@ -953,8 +1180,12 @@ async function restoreFromUrl() {
 
 elements.soundToggle.checked = state.voice.soundEnabled;
 elements.gameSoundToggle.checked = state.gameSoundEnabled;
+elements.musicToggle.checked = state.musicEnabled;
 updateVoiceStatus("Off");
-document.addEventListener("pointerdown", ensureAudioContext, { once: true });
+document.addEventListener("pointerdown", () => {
+  ensureAudioContext();
+  startBackgroundMusic();
+}, { once: true });
 document.addEventListener("pointerdown", (event) => {
   const button = event.target.closest("button");
   if (button) {

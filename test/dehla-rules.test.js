@@ -53,3 +53,11 @@ test("the final trick winner immediately captures every pending Dehla", () => {
   assert.deepEqual(state.pending, []);
   assert.deepEqual(state.captured.Satoris.map((card) => card.id), ["D10", "H10", "C10"]);
 });
+
+test("Dehla scoring supports arbitrary lobby team names", () => {
+  let state = trick(createDehlaState(["Nawabs", "Patakhas"]), "Nawabs", [ten("S")]);
+  state = trick(state, "Nawabs", [plain()]);
+
+  assert.deepEqual(Object.keys(state.captured), ["Nawabs", "Patakhas"]);
+  assert.deepEqual(state.captured.Nawabs.map((card) => card.id), ["S10"]);
+});

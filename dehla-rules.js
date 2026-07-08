@@ -1,11 +1,8 @@
-function createDehlaState() {
+function createDehlaState(teamNames = ["Satoris", "Khiladis"]) {
   return {
     pending: [],
     opportunityTeam: null,
-    captured: {
-      Satoris: [],
-      Khiladis: [],
-    },
+    captured: Object.fromEntries(teamNames.map((team) => [team, []])),
   };
 }
 
@@ -13,10 +10,7 @@ function resolveDehlaTrick(state, { cards, winnerTeam, isFinalTrick = false }) {
   const next = {
     pending: [...state.pending],
     opportunityTeam: state.opportunityTeam,
-    captured: {
-      Satoris: [...state.captured.Satoris],
-      Khiladis: [...state.captured.Khiladis],
-    },
+    captured: Object.fromEntries(Object.entries(state.captured).map(([team, cards]) => [team, [...cards]])),
   };
   const dehlas = cards.filter((card) => card.rank === "10");
 
